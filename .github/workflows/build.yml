@@ -1,0 +1,55 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package artefacts
+        shell: bash
+        run: |
+          cmake -E make_directory package
+          cmake -E tar cf package/AutumnVeil-${{ runner.os }}.zip --format=zip \
+            build/AutumnVeil_artefacts/Release/VST3 \
+            build/AutumnVeil_artefacts/Release/Standalone
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutumnVeil-${{ runner.os }}
+          path: package/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Autumn Veil ${{ github.run_number }}
+          body: Daily build of Autumn Veil (2026-11-22). Dark cinematic pad with aftertouch and sustain pedal.
+          files: artefacts/**/*.zip
+          generate_release_notes: true
